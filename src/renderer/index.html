@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self';" />
+  <title>CLI Usage Tracker</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="flyoutShell" class="flyout-shell">
+    <!-- Natural-height wrapper (never flex-stretched, prevents height drift bug) -->
+    <div id="mainContent" class="main-content">
+      <header class="header">
+        <div class="header-left">
+          <div class="app-mark" aria-hidden="true">
+            <span class="mark-bar gpt"></span>
+            <span class="mark-bar agy"></span>
+            <span class="mark-bar claude"></span>
+          </div>
+          <span class="app-title">CLI 한도</span>
+          <span class="app-time" id="lastUpdatedText">확인 중</span>
+        </div>
+        <div class="header-actions">
+          <button id="refreshBtn" class="icon-btn" title="새로고침" aria-label="새로고침">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+              <polyline points="21 3 21 9 15 9" />
+            </svg>
+          </button>
+          <button id="pinBtn" class="icon-btn" title="창 고정" aria-label="창 고정">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="17" x2="12" y2="22" />
+              <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z" />
+            </svg>
+          </button>
+          <button id="settingsBtn" class="icon-btn" title="설정" aria-label="설정">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+            </svg>
+          </button>
+          <button id="quitBtn" class="icon-btn quit-btn" title="앱 종료" aria-label="앱 종료">✕</button>
+        </div>
+      </header>
+
+      <div id="previewBanner" class="preview-banner hidden">
+        <span>샘플 미리보기</span>
+        <button id="exitPreviewBtn" class="link-btn">해제</button>
+      </div>
+
+      <main id="cardsContainer" class="cards-container"></main>
+    </div>
+
+    <!-- Per-CLI Login Modal -->
+    <div id="loginModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal-sheet">
+        <div class="modal-header">
+          <div>
+            <h2 id="loginModalTitle" class="modal-title">CLI 로그인</h2>
+            <p id="loginModalSub" class="modal-sub">인증 방식 선택</p>
+          </div>
+          <button id="closeLoginModalBtn" class="icon-btn" aria-label="닫기">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <section class="auth-section">
+            <div class="section-head">
+              <span class="section-title">1. CLI 로그인 (권장)</span>
+              <span id="cliDetectBadge" class="status-pill">확인 중</span>
+            </div>
+            <p id="cliHelpText" class="help-text"></p>
+            <div id="cliActionButtons" class="btn-stack"></div>
+          </section>
+
+          <section class="auth-section">
+            <div class="section-head">
+              <span class="section-title">2. 자격 증명 연결</span>
+            </div>
+            <p id="fileHintText" class="help-text"></p>
+            <div class="btn-row">
+              <button id="pickFileBtn" class="btn secondary">파일 선택...</button>
+              <button id="autoDetectBtn" class="btn ghost">자동 재감지</button>
+            </div>
+          </section>
+
+          <section class="auth-section">
+            <div class="section-head">
+              <span class="section-title">3. OAuth 토큰 직접 입력</span>
+              <span class="dpapi-badge">DPAPI</span>
+            </div>
+            <input id="tokenInput" type="password" class="text-input" placeholder="Access Token 붙여넣기" autocomplete="off" />
+            <input id="extraFieldInput" type="text" class="text-input hidden" placeholder="" autocomplete="off" />
+            <button id="saveTokenBtn" class="btn primary">토큰 저장 및 연결</button>
+            <p id="loginFeedback" class="feedback-text hidden"></p>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings Overlay -->
+    <div id="settingsModal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+      <div class="modal-sheet">
+        <div class="modal-header">
+          <div>
+            <h2 class="modal-title">설정</h2>
+            <p class="modal-sub">트레이 · 알림 설정</p>
+          </div>
+          <button id="closeSettingsBtn" class="icon-btn" aria-label="닫기">✕</button>
+        </div>
+
+        <div class="modal-body">
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">자동 새로고침</div>
+            </div>
+            <select id="refreshIntervalSelect" class="select-input">
+              <option value="1">1분</option>
+              <option value="3">3분</option>
+              <option value="5">5분</option>
+              <option value="15">15분</option>
+              <option value="0">수동</option>
+            </select>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">Windows 시작 시 실행</div>
+            </div>
+            <label class="switch">
+              <input id="autoStartToggle" type="checkbox" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">한도 경고 알림</div>
+            </div>
+            <label class="switch">
+              <input id="notifyToggle" type="checkbox" />
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">경고 임계치: <strong id="thresholdVal">85%</strong></div>
+            </div>
+            <input id="thresholdRange" type="range" min="60" max="95" step="5" value="85" />
+          </div>
+
+          <div class="setting-row">
+            <div>
+              <div class="setting-label">미리보기 모드 (샘플)</div>
+            </div>
+            <label class="switch">
+              <input id="previewToggle" type="checkbox" />
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

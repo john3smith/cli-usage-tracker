@@ -1,0 +1,25 @@
+{
+  "name": "cli-usage-tracker",
+  "version": "1.0.0",
+  "description": "Windows 11 System Tray app to monitor GPT CLI (Codex), AGY CLI (Antigravity), and Claude CLI subscription usage limits.",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "test": "node --test tests/*.test.js"
+  },
+  "keywords": [
+    "windows11",
+    "tray",
+    "claude",
+    "codex",
+    "gpt",
+    "antigravity",
+    "agy",
+    "usage"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^35.0.0"
+  }
+}
