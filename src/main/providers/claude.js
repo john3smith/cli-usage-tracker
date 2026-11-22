@@ -4,9 +4,19 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const runFile = promisify(execFile);
 const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
-const CLAUDE_TOKEN_URL = 'https://console.anthropic.com/v1/oauth/token';
-const CLAUDE_CLIENT_ID = '9d1c250a-e61b-44d9-88ed-5944d1962f5e';
+
+async function readRelayUsage(root) {
+  const python = path.join(root, '.venv', 'Scripts', 'python.exe');
+  const script = path.join(__dirname, 'relay_usage.py');
+  const { stdout } = await runFile(python, ['-I', '-B', script, root], {
+    windowsHide: true, timeout: 18_000, maxBuffer: 64 * 1024,
+  });
+  return JSON.parse(stdout);
+}
 
 function getDefaultAuthPaths() {
   const home = os.homedir();
@@ -22,14 +32,12 @@ function parseClaudeAuthJson(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const oauth = raw.claudeAiOauth && typeof raw.claudeAiOauth === 'object' ? raw.claudeAiOauth : raw;
   const accessToken = oauth.accessToken || oauth.access_token || null;
-  const refreshToken = oauth.refreshToken || oauth.refresh_token || null;
   const expiresAt = oauth.expiresAt || oauth.expires_at || null;
   const subscriptionType = oauth.subscriptionType || oauth.subscription_type || null;
   const rateLimitTier = oauth.rateLimitTier || oauth.rate_limit_tier || null;
 
   return {
     accessToken,
-    refreshToken,
     expiresAt: typeof expiresAt === 'number' ? expiresAt : null,
     subscriptionType,
     rateLimitTier,
@@ -85,26 +93,6 @@ function parseClaudeUsageResponse(data, meta = {}) {
   };
 }
 
-async function refreshClaudeToken(refreshToken, fetchImpl = fetch) {
-  if (!refreshToken) return null;
-  try {
-    const res = await fetchImpl(CLAUDE_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        grant_type: 'refresh_token',
-        refresh_token: refreshToken,
-        client_id: CLAUDE_CLIENT_ID,
-      }),
-    });
-    if (!res.ok) return null;
-    const body = await res.json();
-    return body.access_token || null;
-  } catch {
-    return null;
-  }
-}
-
 function resolveClaudeCredentials(configStore) {
   const cfg = configStore.getProviderConfig('claude');
   if (cfg.mode === 'disconnected') {
@@ -119,7 +107,6 @@ function resolveClaudeCredentials(configStore) {
       authSource: '앱 저장 토큰',
       creds: {
         accessToken: token,
-        refreshToken: null,
         expiresAt: null,
         subscriptionType: null,
         rateLimitTier: null,
@@ -152,13 +139,32 @@ function resolveClaudeCredentials(configStore) {
   return { status: 'logged_out' };
 }
 
-async function fetchClaudeUsage(configStore, fetchImpl = fetch) {
+async function fetchClaudeUsage(configStore, fetchImpl = fetch, readRelay = readRelayUsage) {
   const base = {
     id: 'claude',
     name: 'Claude CLI',
     subtitle: 'Claude Code CLI',
     updatedAt: new Date().toISOString(),
   };
+
+  const cfg = configStore.getProviderConfig('claude');
+  if (cfg.relayRoot && cfg.mode !== 'disconnected') {
+    const state = { ...base, authSource: 'bukang Claude', plan: null, account: null, windows: [], extra: null };
+    try {
+      const { usage, reason } = await readRelay(cfg.relayRoot);
+      const parsed = parseClaudeUsageResponse(usage);
+      if (parsed.windows.length) return { ...state, ...parsed, status: 'connected', error: null };
+      const messages = {
+        expired: 'bukang의 다음 Claude 작업에서 인증 갱신 후 조회됩니다.',
+        auth: 'bukang에서 Claude 구독 로그인을 확인해 주세요.',
+        rate_limited: 'Claude 사용량 조회가 일시적으로 제한되었습니다.',
+        network: 'Claude 사용량 서버에 연결할 수 없습니다.',
+      };
+      return { ...state, status: 'error', error: messages[reason] || 'bukang에서 사용량을 확인할 수 없습니다.' };
+    } catch {
+      return { ...state, status: 'error', error: 'bukang 사용량 조회 모듈을 실행할 수 없습니다.' };
+    }
+  }
 
   const resolved = resolveClaudeCredentials(configStore);
   if (resolved.status === 'logged_out') {
@@ -174,11 +180,7 @@ async function fetchClaudeUsage(configStore, fetchImpl = fetch) {
     };
   }
 
-  let { accessToken, refreshToken, expiresAt, subscriptionType, rateLimitTier } = resolved.creds;
-  if (expiresAt && expiresAt < Date.now() + 60_000 && refreshToken) {
-    const refreshed = await refreshClaudeToken(refreshToken, fetchImpl);
-    if (refreshed) accessToken = refreshed;
-  }
+  const { accessToken, subscriptionType, rateLimitTier } = resolved.creds;
 
   const callApi = async (token) => fetchImpl(CLAUDE_USAGE_URL, {
     method: 'GET',
@@ -191,13 +193,7 @@ async function fetchClaudeUsage(configStore, fetchImpl = fetch) {
   });
 
   try {
-    let res = await callApi(accessToken);
-    if ((res.status === 401 || res.status === 403) && refreshToken) {
-      const refreshed = await refreshClaudeToken(refreshToken, fetchImpl);
-      if (refreshed) {
-        res = await callApi(refreshed);
-      }
-    }
+    const res = await callApi(accessToken);
 
     if (res.status === 401 || res.status === 403) {
       return {

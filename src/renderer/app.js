@@ -101,12 +101,19 @@ function renderProviderCard(p) {
 
   const accountTitle = p.account || p.authSource || p.subtitle;
 
-  const actionHtml = isConnected
+  let actionHtml = isConnected
     ? `
       <button class="mini-btn" data-action="login" data-id="${p.id}">계정</button>
       <button class="mini-btn logout-x" data-action="logout" data-id="${p.id}" title="로그아웃">✕</button>
     `
     : `<button class="mini-btn login-primary" data-action="login" data-id="${p.id}">로그인</button>`;
+
+  if (p.id === 'claude' && currentState?.settings?.providers?.claude?.relayRoot) {
+    actionHtml = p.status === 'logged_out'
+      ? '<button class="mini-btn" data-action="relay-connect" data-id="claude">bukang 연결</button>'
+      : '<button class="mini-btn" data-action="refresh" data-id="claude" title="bukang 사용량 새로고침">bukang ↻</button>' +
+        '<button class="mini-btn logout-x" data-action="logout" data-id="claude" title="모니터 조회 끄기">✕</button>';
+  }
 
   let bodyHtml = '';
   if (isConnected && Array.isArray(p.windows) && p.windows.length > 0) {
@@ -345,6 +352,8 @@ function wireEvents() {
     if (action === 'login') {
       await window.usageApi.detectClis();
       openLoginModal(id);
+    } else if (action === 'relay-connect') {
+      await window.usageApi.reconnectAuto(id);
     } else if (action === 'logout') {
       await window.usageApi.logoutProvider(id);
     } else if (action === 'refresh') {

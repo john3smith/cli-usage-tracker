@@ -16,6 +16,14 @@ Windows 11 작업 표시줄 알림 영역(시스템 트레이)에 상주하며 *
 
 ## 설치 및 실행
 
+### bukang의 Claude 로그인으로 조회
+
+모니터 설정 파일 `%APPDATA%\cli-usage-tracker\config.json`의 `providers.claude.relayRoot`에 bukang 릴레이 설치 폴더의 절대 경로를 지정하고 모니터를 다시 실행합니다. 해당 폴더에는 릴레이의 Windows 가상환경과 `app/relay_claude_usage.py`가 있어야 합니다.
+
+이 설정에서는 모니터가 bukang의 사용량 조회 함수를 호출합니다. Claude 카드의 **bukang ↻** 버튼으로 즉시 조회하고, **✕** 버튼으로 자동 조회를 끌 수 있습니다. **bukang 연결**을 누르면 조회를 재개합니다. Claude 인증이 필요하면 bukang을 실행하는 Windows 계정에서 Claude CLI에 로그인합니다. 토큰 갱신은 Claude CLI가 담당합니다.
+
+### 프로그램 실행
+
 ```powershell
 git clone <this-repo-url>
 cd cli-usage-tracker

@@ -68,6 +68,8 @@ function buildTooltipText(providers) {
         })
         .join(' · ');
       lines.push(`• ${p.name}: ${summary}`);
+    } else if (p.status === 'error') {
+      lines.push(`• ${p.name}: 조회 오류`);
     } else if (p.status === 'expired') {
       lines.push(`• ${p.name}: 세션 만료`);
     } else {
@@ -405,7 +407,11 @@ function registerIpcHandlers() {
     return cliStatus;
   });
 
+  const usesRelayLogin = (id) => id === 'claude' && Boolean(configStore.getProviderConfig(id).relayRoot);
+  const relayLoginMessage = { ok: false, message: 'Claude 로그인은 bukang에서 관리합니다.' };
+
   ipcMain.handle('auth:launch-cli', async (_e, { providerId, mode }) => {
+    if (usesRelayLogin(providerId)) return relayLoginMessage;
     configStore.setProviderAuto(providerId);
     const res = await launchProviderCliLogin(providerId, mode, async (detectedId) => {
       await refreshSingleProvider(detectedId);
@@ -420,6 +426,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('auth:pick-file', async (_e, providerId) => {
+    if (usesRelayLogin(providerId)) return relayLoginMessage;
     const wasPinned = isPinned;
     isPinned = true;
     try {
@@ -444,6 +451,7 @@ function registerIpcHandlers() {
   });
 
   ipcMain.handle('auth:save-token', async (_e, { providerId, token, accountId, projectId }) => {
+    if (usesRelayLogin(providerId)) return relayLoginMessage;
     if (!token || !token.trim()) {
       return { ok: false, message: '토큰을 입력해 주세요.' };
     }

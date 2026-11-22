@@ -146,6 +146,60 @@ test('Claude parser & fetcher handle /api/oauth/usage response', async () => {
   }
 });
 
+test('Claude relay mode uses only the relay for old token/file configurations', async () => {
+  const { dir, store } = makeTempConfigStore();
+  const noDirectApi = () => assert.fail('Unexpected direct API request');
+  try {
+    store.setProviderToken('claude', 'test-token');
+    store.updateProviderConfig('claude', { relayRoot: dir });
+    for (const mode of ['auto', 'file', 'token']) {
+      store.updateProviderConfig('claude', { mode });
+      const connected = await fetchClaudeUsage(store, noDirectApi, async (root) => {
+        assert.equal(root, dir);
+        return { usage: { five_hour: { utilization: 0 }, seven_day: { utilization: 100 } } };
+      });
+      assert.equal(connected.status, 'connected');
+      assert.deepEqual(connected.windows.map(w => w.remainingPercent), [100, 0]);
+    }
+    for (const reason of ['auth', 'expired', 'rate_limited', 'network']) {
+      const state = await fetchClaudeUsage(store, noDirectApi, async () => ({ reason }));
+      assert.equal(state.status, 'error');
+      assert.deepEqual(state.windows, []);
+    }
+    store.disconnectProvider('claude');
+    const off = await fetchClaudeUsage(store, noDirectApi, () => assert.fail('Relay is disconnected'));
+    assert.equal(off.status, 'logged_out');
+    store.setProviderAuto('claude');
+    assert.equal(store.getProviderConfig('claude').relayRoot, dir);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Claude file lookup never rotates an expired or rejected credential', async () => {
+  const { dir, store } = makeTempConfigStore();
+  try {
+    const file = path.join(dir, 'claude.json');
+    const original = JSON.stringify({ claudeAiOauth: {
+      accessToken: 'test-access', refreshToken: 'test-refresh', expiresAt: 1,
+    } });
+    fs.writeFileSync(file, original);
+    store.setProviderFile('claude', file);
+    for (const status of [401, 403]) {
+      const calls = [];
+      const result = await fetchClaudeUsage(store, async (url, opts) => {
+        calls.push([opts.method, url]);
+        return { status, ok: false };
+      });
+      assert.equal(result.status, 'expired');
+      assert.deepEqual(calls, [['GET', 'https://api.anthropic.com/api/oauth/usage']]);
+      assert.equal(fs.readFileSync(file, 'utf8'), original);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('AGY parser & fetcher return 5-hour and weekly windows', async () => {
   const nestedCreds = parseGoogleCredsJson({
     token: {
