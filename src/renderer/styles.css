@@ -349,6 +349,7 @@ html, body {
 
 .card-status.error { color: #fda4af; }
 .card-status.expired { color: #fde68a; }
+.card-status.waiting { color: #93c5fd; }
 
 /* Modal Overlays */
 .modal-overlay {

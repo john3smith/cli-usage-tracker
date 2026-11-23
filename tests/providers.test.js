@@ -161,7 +161,13 @@ test('Claude relay mode uses only the relay for old token/file configurations', 
       assert.equal(connected.status, 'connected');
       assert.deepEqual(connected.windows.map(w => w.remainingPercent), [100, 0]);
     }
-    for (const reason of ['auth', 'expired', 'rate_limited', 'network']) {
+    const waiting = await fetchClaudeUsage(store, noDirectApi, async () => ({ reason: 'expired' }));
+    assert.equal(waiting.status, 'waiting');
+    assert.equal(waiting.error, null);
+    assert.match(waiting.notice, /자동 갱신/);
+    assert.deepEqual(waiting.windows, []);
+
+    for (const reason of ['auth', 'rate_limited', 'network']) {
       const state = await fetchClaudeUsage(store, noDirectApi, async () => ({ reason }));
       assert.equal(state.status, 'error');
       assert.deepEqual(state.windows, []);

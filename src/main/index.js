@@ -68,6 +68,8 @@ function buildTooltipText(providers) {
         })
         .join(' · ');
       lines.push(`• ${p.name}: ${summary}`);
+    } else if (p.status === 'waiting') {
+      lines.push(`• ${p.name}: 대기 중 (자동 갱신 예정)`);
     } else if (p.status === 'error') {
       lines.push(`• ${p.name}: 조회 오류`);
     } else if (p.status === 'expired') {

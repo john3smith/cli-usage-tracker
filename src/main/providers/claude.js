@@ -154,8 +154,15 @@ async function fetchClaudeUsage(configStore, fetchImpl = fetch, readRelay = read
       const { usage, reason } = await readRelay(cfg.relayRoot);
       const parsed = parseClaudeUsageResponse(usage);
       if (parsed.windows.length) return { ...state, ...parsed, status: 'connected', error: null };
+      if (reason === 'expired') {
+        return {
+          ...state,
+          status: 'waiting',
+          notice: '대기 중 (다음 작업 시 자동 갱신)',
+          error: null,
+        };
+      }
       const messages = {
-        expired: 'bukang의 다음 Claude 작업에서 인증 갱신 후 조회됩니다.',
         auth: 'bukang에서 Claude 구독 로그인을 확인해 주세요.',
         rate_limited: 'Claude 사용량 조회가 일시적으로 제한되었습니다.',
         network: 'Claude 사용량 서버에 연결할 수 없습니다.',

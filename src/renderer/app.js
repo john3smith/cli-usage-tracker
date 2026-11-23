@@ -96,6 +96,7 @@ function syncWindowHeight() {
 function renderProviderCard(p) {
   if (!p) return '';
   const isConnected = p.status === 'connected';
+  const isWaiting = p.status === 'waiting';
   const isExpired = p.status === 'expired';
   const isError = p.status === 'error';
 
@@ -137,6 +138,13 @@ function renderProviderCard(p) {
       `;
     }).join('');
     bodyHtml = `<div class="meters">${rows}</div>`;
+  } else if (isWaiting) {
+    const waitingText = p.notice || '대기 중 (다음 작업 시 자동 갱신)';
+    bodyHtml = `
+      <div class="card-status waiting" title="${escapeHtml(waitingText)}">
+        <span>${escapeHtml(waitingText)}</span>
+      </div>
+    `;
   } else if (isExpired) {
     bodyHtml = `<div class="card-status expired"><span>세션 만료 · 재로그인 필요</span></div>`;
   } else if (isError) {
