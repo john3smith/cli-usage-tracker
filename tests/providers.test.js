@@ -17,7 +17,17 @@ function makeTempConfigStore() {
   return { dir, store: new ConfigStore(dir, null) };
 }
 
+test('Flyout close button hides window to tray instead of quitting app', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../src/renderer/index.html'), 'utf8');
+  const js = fs.readFileSync(path.join(__dirname, '../src/renderer/app.js'), 'utf8');
+  assert.match(html, /id="closeBtn"[^>]*title="트레이로 최소화"/);
+  assert.doesNotMatch(html, /id="quitBtn"/);
+  assert.match(js, /\$\('closeBtn'\)\.addEventListener\('click',\s*\(\)\s*=>\s*\{\s*window\.usageApi\.hideWindow\(\);/);
+  assert.doesNotMatch(js, /quitApp\(/);
+});
+
 test('createTrayIconPng and createTrayIconIco generate valid image buffers', () => {
+
   const sample = {
     gpt: { id: 'gpt', status: 'connected', windows: [{ usedPercent: 30, remainingPercent: 70 }] },
     agy: { id: 'agy', status: 'connected', windows: [{ usedPercent: 90, remainingPercent: 10 }] },

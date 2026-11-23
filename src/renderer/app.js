@@ -347,8 +347,8 @@ function wireEvents() {
     window.usageApi.updateSettings({ previewMode: false });
   });
 
-  $('quitBtn').addEventListener('click', () => {
-    window.usageApi.quitApp();
+  $('closeBtn').addEventListener('click', () => {
+    window.usageApi.hideWindow();
   });
 
   $('cardsContainer').addEventListener('click', async (e) => {
