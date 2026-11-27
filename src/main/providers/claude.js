@@ -9,8 +9,15 @@ const { promisify } = require('util');
 const runFile = promisify(execFile);
 const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 
+function resolveRelayPython(root, exists = fs.existsSync) {
+  const python = ['.venv-py312', '.venv'].map(name => path.join(root, name, 'Scripts', 'python.exe'))
+    .find(candidate => exists(candidate));
+  if (!python) throw new Error('Relay Python runtime unavailable');
+  return python;
+}
+
 async function readRelayUsage(root) {
-  const python = path.join(root, '.venv', 'Scripts', 'python.exe');
+  const python = resolveRelayPython(root);
   const script = path.join(__dirname, 'relay_usage.py');
   const { stdout } = await runFile(python, ['-I', '-B', script, root], {
     windowsHide: true, timeout: 18_000, maxBuffer: 64 * 1024,
@@ -265,6 +272,7 @@ async function fetchClaudeUsage(configStore, fetchImpl = fetch, readRelay = read
 }
 
 module.exports = {
+  resolveRelayPython,
   getDefaultAuthPaths,
   parseClaudeAuthJson,
   parseClaudeUsageResponse,
